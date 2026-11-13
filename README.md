@@ -2,7 +2,9 @@
 
 现有温馨绘本界面、树体和树裙素材、十种DIY挂件、六种颜色、十道正式题目、正误反馈、计分分层、留言与上树动画保持不变。
 
-本轮已添加 **Cloudflare Workers + D1** 共享后端与 **GitHub Pages** 发布工作流，完成本地联调。2026-11-14经树主人确认，已初始化生产D1、设置生产Secrets并发布Worker，线上读取、来源限制、管理员鉴权和备份导出已验证。GitHub公开仓库已创建，GitHub Pages尚未发布。
+**游戏网址：[快乐源宝的圣诞树](https://kuaileyuanbao-code.github.io/christmas-tree/)**
+
+本轮已添加 **Cloudflare Workers + D1** 共享后端与 **GitHub Pages** 发布工作流，完成本地联调。2026-11-14经树主人确认，已初始化生产D1、设置生产Secrets、发布Worker和GitHub Pages。线上素材、十题答题、7分上层、留言、提交、详情和刷新保存已验证，测试挂件已移除。手机真机在不同网络下的共享体验仍待树主人确认。
 
 **部署、管理员工具、旧存档迁移及真机验收，见 [DEPLOYMENT.md](DEPLOYMENT.md)。**
 
@@ -73,7 +75,7 @@ npm run preview    # 预览dist，默认4173端口
 - `src/storage.ts`：HTTP与本地数据接口。
 - `src/components/`、`src/style.css`、`public/assets/`：已认可的视觉与素材。
 - `worker/index.ts`：Worker API；`worker/migrations/`：D1数据库迁移。
-- `wrangler.jsonc`：可运行本地占位配置，正式部署前需填真实D1 ID与Pages来源。
+- `wrangler.jsonc`：已绑定本项目生产D1和Pages来源；本地开发使用 `.dev.vars` 覆盖本地来源。复用到其他账号时需替换绑定。
 - `.github/workflows/pages.yml`：只手动触发的Pages构建发布。
 - `scripts/admin.mjs`：导出、移除与导入命令，凭据不进入前端。
 - `tests/`：29项自动测试。
