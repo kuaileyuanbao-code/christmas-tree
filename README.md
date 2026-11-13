@@ -1,2 +1,97 @@
-# christmas-tree
-快乐源宝的圣诞树 · 朋友一起答题、制作挂件与留下圣诞祝福
+# 快乐源宝的圣诞树 · 多人共享版
+
+现有温馨绘本界面、树体和树裙素材、十种DIY挂件、六种颜色、十道正式题目、正误反馈、计分分层、留言与上树动画保持不变。
+
+本轮已添加 **Cloudflare Workers + D1** 共享后端与 **GitHub Pages** 发布工作流，完成本地联调。2026-11-14经树主人确认，已初始化生产D1、设置生产Secrets并发布Worker，线上读取、来源限制、管理员鉴权和备份导出已验证。GitHub公开仓库已创建，GitHub Pages尚未发布。
+
+**部署、管理员工具、旧存档迁移及真机验收，见 [DEPLOYMENT.md](DEPLOYMENT.md)。**
+
+## 本地完整运行
+
+需要 Node.js 24。在项目目录运行：
+
+```powershell
+npm ci
+npm start
+```
+
+打开 http://127.0.0.1:5173/ 。双击 `启动圣诞树.cmd` 也可以。首次会生成被Git忽略的本机配置、应用本地D1迁移，并启动前端与API。
+
+分开运行时：
+
+```powershell
+npm run setup:local
+npm run db:local
+npm run api:dev  # 终端一，127.0.0.1:8787
+npm run dev      # 终端二，127.0.0.1:5173
+```
+
+这里的API与D1均是本地模拟环境，不是线上服务。默认共享模式只读写API，连接失败不会回退到localStorage。缺少配置时会报错，不能假装共享成功。
+
+## 验证与构建
+
+```powershell
+npm test           # 29项：题库、所有分数、持久化、限流、幂等、管理鉴权等
+npm run check      # 前后端TypeScript检查
+npm run test:cloud # 隔离Worker/D1 + 两个独立Edge浏览器 + Pages子路径联调
+npm run build      # 必须有VITE_API_URL；产物dist
+npm run preview    # 预览dist，默认4173端口
+```
+
+`setup:local` 创建 `.env.local`，因此可在本地构建。生产发布必须将公开的 `VITE_API_URL` 设置为实际HTTPS Worker源地址。GitHub工作流仅在树主人手动点击后发布，自动按仓库名设置Vite base。
+
+浏览器联调需要本机Microsoft Edge，测试库在忽略目录 `.test-artifacts/`，不会写入平时本地库或线上库。结果见 `screenshots/cloud-verification.txt`。已验证刷新、关闭所有浏览器后重开、Worker重启仍可读取共享记录；真机与线上网络测试留待部署后执行。
+
+## 数据与接口
+
+- `src/storage.ts` 保留 `DecorationRepository.list()` / `add()`，新增可选答卷参数和服务端记录返回值。普通页面使用HTTP实现；localStorage实现只供旧存档或明确的离线开发验收使用。
+- 公开 `GET /api/decorations` 读取同一棵树；`POST /api/decorations` 提交昵称、留言、设计、完整答卷、题库版本和稳定提交ID。后端不使用客户端分数。
+- 私有 `GET /api/admin/export` 导出JSON；`DELETE /api/admin/decorations/:id` 移除挂件；`POST /api/admin/import` 迁移可信旧存档或恢复备份。均须Bearer管理员密钥。
+- 同源校园Wi-Fi与单浏览器分别限流，计数持久化到D1；重复提交ID、并发重试、同浏览器同内容均有保护。
+- 原始IP不保存，内部标识做HMAC；公开列表不返回答卷和内部哈希。
+- 旧浏览器存档未删除，不会自动上传。管理员确认导入后，旧7分制原分数和原高度保留，新记录为10分制。导入不覆盖现有ID，也不复活已移除记录。
+
+## 题库与位置
+
+`src/config.ts` 为用户正式十题，3简单＋4中等＋3困难，仅用于内部组织；第2/7/9题按用户要求微调选项顺序，正确位置为 **C、A、B、C、B、D、A、B、A、D**。每题1分，答对绿勾、答错红叉，约0.65秒自动前进。修改题目或顺序时同步递增 `QUIZ_VERSION`。
+
+| 正式成绩 | 区域 |
+| --- | --- |
+| 9～10 | 树顶星星下方 |
+| 7～8 | 上层 |
+| 5～6 | 中上层 |
+| 3～4 | 中下层 |
+| 0～2 | 下层 |
+
+布局与分批算法沿用原版：电脑最多40枚朋友挂件，手机/窄平板最多28枚；各层分别分批，定位并高亮新挂件。彩灯、顶星与小礼物不占人数。记录稳定按服务端时间与ID排序。
+
+## 目录
+
+- `src/App.tsx`：原有页面和完整流程、共享数据刷新。
+- `src/config.ts`：树名、题库、正确答案、题库版本。
+- `src/model.ts`：计分、旧版兼容、分层与分批布局。
+- `src/storage.ts`：HTTP与本地数据接口。
+- `src/components/`、`src/style.css`、`public/assets/`：已认可的视觉与素材。
+- `worker/index.ts`：Worker API；`worker/migrations/`：D1数据库迁移。
+- `wrangler.jsonc`：可运行本地占位配置，正式部署前需填真实D1 ID与Pages来源。
+- `.github/workflows/pages.yml`：只手动触发的Pages构建发布。
+- `scripts/admin.mjs`：导出、移除与导入命令，凭据不进入前端。
+- `tests/`：29项自动测试。
+- `DEPLOYMENT.md`：部署及跨设备验收步骤。
+
+## 旧的离线开发模式
+
+如需运行单机模式或历史UI验收，明确使用：
+
+```powershell
+npm run dev:offline
+# 另一个终端（5174端口）
+node scripts/verify.mjs
+node scripts/verify-layout.mjs
+node scripts/verify-compatibility.mjs
+node scripts/capture.mjs
+```
+
+离线模式只在开发服务器生效，生产构建会拒绝该模式。旧的 `上线讨论说明.md` 是历史材料；桌面上之前导出的ZIP也是当时的单机版本，当前共享版以本目录源码为准。
+
+管理员凭据仅在Worker Secrets；本地 `.dev.vars`、`.env.local`、D1状态、备份及依赖目录均被Git忽略。GitHub Pages仅需公开API地址，不需要Cloudflare管理员密钥。

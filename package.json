@@ -1,0 +1,42 @@
+{
+  "name": "christmas-tree",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "build": "npm run check && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "tsx --test tests/*.test.ts",
+    "setup:local": "node scripts/setup-local.mjs",
+    "api:dev": "wrangler dev --local --ip 127.0.0.1 --port 8787",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "check": "tsc -b && tsc -p tsconfig.worker.json",
+    "test:api": "tsx --test tests/api.test.ts",
+    "admin": "node scripts/admin.mjs",
+    "dev:offline": "node scripts/dev-offline.mjs",
+    "api:deploy": "node scripts/check-deploy.mjs && wrangler deploy",
+    "test:cloud": "node scripts/verify-cloud.mjs",
+    "start": "node scripts/start-local.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261113.1",
+    "@playwright/test": "^1.56.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "esbuild": "^0.28.2",
+    "miniflare": "^5.20261110.2-beta",
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.2",
+    "wrangler": "^4.161.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "happy-yuanbao-christmas-api",
+  "account_id": "d1d785a4f516597433d3207a7a3aa531",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-13",
+  "workers_dev": true,
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "christmas-tree",
+    "database_id": "9dd2b5c1-1a64-417a-830c-3d3def062ccd",
+    "migrations_dir": "worker/migrations"
+  }],
+  "vars": {
+    "ALLOWED_ORIGINS": "https://kuaileyuanbao-code.github.io"
+  }
+}
