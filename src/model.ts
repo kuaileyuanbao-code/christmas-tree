@@ -26,31 +26,51 @@ export function getScoreMessage(score:number) {
   return score===MAX_SCORE?'满分！你也太了解我了吧！':score===9?'差一点满分，厉害！':score>=7?'看来我们真的挺熟！':score>=5?'还不错嘛，了解我不少！':score>=3?'哈哈哈，看来还有提升空间！':'没关系，欢迎继续了解我！';
 }
 export function calculateScore(answers:number[], correct:number[]) { return correct.reduce((n,a,i)=>n+Number(answers[i]===a),0); }
-type Point = {x:number;y:number};
-function row(y:number, xs:number[]):Point[] { return xs.map(x=>({x,y})); }
-export const desktopSlots: Record<Layer,Point[]> = {
-  top:[...row(21,[50]),...row(28,[43,57])],
-  upper:[...row(36,[37,50,63]),...row(42,[43,57])],
-  middleUpper:[...row(49,[30,43,57,70]),...row(55,[35,47,59,71])],
-  middleLower:[...row(63,[24,37,50,63,76]),...row(69,[29,42,55,68,81])],
-  bottom:[...row(77,[17,28,39,50,61,72,83]),...row(84,[20,31,42,53,64,75,86])],
+export const layerRegions:Record<Layer,{minY:number;maxY:number;halfWidth:number}>={
+  top:{minY:17,maxY:28,halfWidth:10},upper:{minY:29,maxY:49,halfWidth:22},
+  middleUpper:{minY:50,maxY:64,halfWidth:28},middleLower:{minY:65,maxY:76,halfWidth:34},
+  bottom:{minY:77,maxY:85,halfWidth:32},
 };
-export const mobileSlots: Record<Layer,Point[]> = {
-  top:row(20,[50]), upper:row(31,[35,50,65]),
-  middleUpper:[...row(42,[30,50,70]),...row(51,[36,56,76])],
-  middleLower:[...row(60,[23,41,59,77]),...row(69,[29,47,65,83])],
-  bottom:[...row(78,[18,34,50,66,82]),...row(87,[20,36,52,68,84])],
-};
-export function getPageCount(items:Decoration[],mobile=false) { const slots=mobile?mobileSlots:desktopSlots; return Math.max(1,...layers.map(l=>Math.ceil(items.filter(d=>getDecorationLayer(d)===l).length/slots[l].length))); }
-export function getItemPage(items:Decoration[],id:string,mobile=false) { const item=items.find(d=>d.id===id); if(!item) return 0; const l=getDecorationLayer(item); return Math.floor(items.filter(d=>getDecorationLayer(d)===l).findIndex(d=>d.id===id)/(mobile?mobileSlots:desktopSlots)[l].length); }
-export function layoutDecorations(items:Decoration[],page:number,mobile=false) {
-  const slots=mobile?mobileSlots:desktopSlots;
-  return layers.flatMap(layer=>{
-    const group=items.filter(d=>getDecorationLayer(d)===layer);
-    const batches=Math.ceil(group.length/slots[layer].length);
-    if(!batches) return [];
-    const current=group.slice((page%batches)*slots[layer].length,(page%batches+1)*slots[layer].length);
-    return current.map((item,i)=>({item,...slots[layer][current.length===1?Math.floor((slots[layer].length-1)/2):i]}));
-  });
+function fraction(value:string){
+  let h=2166136261;for(let i=0;i<value.length;i++)h=Math.imul(h^value.charCodeAt(i),16777619);
+  h=Math.imul(h^(h>>>16),0x85ebca6b);h=Math.imul(h^(h>>>13),0xc2b2ae35);
+  return (((h^(h>>>16))>>>0)+.5)/4294967296;
 }
+function halfWidthAt(item:Decoration,y:number){const region=layerRegions[getDecorationLayer(item)];return region.halfWidth*(.76+.24*(y-region.minY)/(region.maxY-region.minY));}
+// 每枚挂件独立抽取高度，使用云端记录中的ID与创建时间；不依赖提交顺序或显示批次。
+// 手机和电脑共用同一高度，避让只调整左右位置，绝不改变运气或冠军。
+export function getDecorationHeight(item:Decoration){
+  const region=layerRegions[getDecorationLayer(item)];
+  return region.minY+fraction(`height-v1:${item.id}:${item.createdAt}`)*(region.maxY-region.minY);
+}
+export function getTreeLeader(items:Decoration[]):Decoration|undefined {
+  return items.reduce<Decoration|undefined>((best,item)=>!best||getDecorationHeight(item)<getDecorationHeight(best)||(getDecorationHeight(item)===getDecorationHeight(best)&&item.id<best.id)?item:best,undefined);
+}
+type PositionedDecoration={item:Decoration;x:number;y:number};
+const layouts=new WeakMap<Decoration[],Map<boolean,PositionedDecoration[][]>>();
+function pagesFor(items:Decoration[],mobile:boolean){
+  const cached=layouts.get(items)?.get(mobile);if(cached)return cached;
+  const capacities=mobile?[2,6,6,8,10]:[3,8,8,10,12],spacing=mobile?10:8.3;
+  const pages:PositionedDecoration[][]=[[]];
+  const ordered=[...items].sort((a,b)=>layers.indexOf(getDecorationLayer(a))-layers.indexOf(getDecorationLayer(b))||a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id));
+  for(const item of ordered){
+    const layer=getDecorationLayer(item),y=getDecorationHeight(item),halfWidth=halfWidthAt(item,y);
+    let placed=false;
+    for(const page of pages){
+      if(page.filter(p=>getDecorationLayer(p.item)===layer).length>=capacities[layers.indexOf(layer)])continue;
+      for(let candidate=0;candidate<120;candidate++){
+        const x=50+(fraction(`side-v1:${item.id}:${item.createdAt}:${candidate}`)*2-1)*halfWidth;
+        if(page.every(p=>(p.x-x)**2+((p.y-y)*1.26)**2>=spacing**2)){
+          page.push({item,x,y});placed=true;break;
+        }
+      }
+      if(placed)break;
+    }
+    if(!placed)pages.push([{item,x:50+(fraction(`side-v1:${item.id}:${item.createdAt}:0`)*2-1)*halfWidth,y}]);
+  }
+  const cache=layouts.get(items)??new Map<boolean,PositionedDecoration[][]>();cache.set(mobile,pages);layouts.set(items,cache);return pages;
+}
+export function getPageCount(items:Decoration[],mobile=false){return pagesFor(items,mobile).length;}
+export function getItemPage(items:Decoration[],id:string,mobile=false){return Math.max(0,pagesFor(items,mobile).findIndex(page=>page.some(p=>p.item.id===id)));}
+export function layoutDecorations(items:Decoration[],page:number,mobile=false){const pages=pagesFor(items,mobile);return pages[((page%pages.length)+pages.length)%pages.length];}
 export function makeDemo(count:number):Decoration[] { return Array.from({length:count},(_,i)=>({id:`demo-${count}-${i}`,nickname:['小满','阿栗','冬眠小熊','桃子','Momo','一颗松果','小鹿','星星'][i%8]+(i>=8?`${i+1}`:''),message:['愿你这一年，心里有光，身边有爱。','把所有美好的事，悄悄挂在你的树上。','下次见面，一起喝杯热可可吧！','圣诞快乐，愿平凡的日子也闪闪发光。'][i%4],score:i%(MAX_SCORE+1),maxScore:MAX_SCORE,design:{kind:'preset',shape:shapes[i%shapes.length],color:colors[i%colors.length].id,version:1},createdAt:new Date(2026,11,1,0,i).toISOString(),demo:true})); }

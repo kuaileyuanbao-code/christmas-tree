@@ -1,12 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateScore, getLayer, getDecorationLayer, getMaxScore, getScoreMessage, getPageCount, getItemPage, layoutDecorations, makeDemo, desktopSlots, mobileSlots, MAX_SCORE } from '../src/model.ts';
+import { calculateScore, getLayer, getDecorationLayer, getMaxScore, getScoreMessage, getPageCount, getItemPage, layoutDecorations, getDecorationHeight, getTreeLeader, makeDemo, layerRegions, MAX_SCORE } from '../src/model.ts';
 import { questions, isDemoQuestions } from '../src/config.ts';
 test('0～10 每个分数均按新规则分层，树顶不遮住星星',()=>{
   const expected=['bottom','bottom','bottom','middleLower','middleLower','middleUpper','middleUpper','upper','upper','top','top'];
   expected.forEach((layer,score)=>assert.equal(getLayer(score),layer));
-  assert.ok(desktopSlots.top.every(p=>p.y>12));
-  assert.ok(mobileSlots.top.every(p=>p.y>12));
+  assert(layerRegions.top.minY>12);
 });
 test('十题等权计分，每个分数与单题答案对应准确',()=>{
   const correct=[2,0,1,2,1,3,0,1,0,3];
@@ -49,9 +48,8 @@ for(const count of [10,30,60,120])for(const mobile of [false,true]){
     const pages=getPageCount(items,mobile);
     for(let page=0;page<pages;page++){
       const visible=layoutDecorations(items,page,mobile);
-      assert.ok(visible.length<=(mobile?28:40));
-      const slots=mobile?mobileSlots:desktopSlots;
-      for(const p of visible){seen.add(p.item.id);assert.ok(slots[getDecorationLayer(p.item)].some(s=>s.x===p.x&&s.y===p.y));}
+      assert.ok(visible.length<=(mobile?32:41));
+      for(const p of visible){seen.add(p.item.id);const region=layerRegions[getDecorationLayer(p.item)];assert(p.y>=region.minY&&p.y<=region.maxY);assert.equal(p.y,getDecorationHeight(p.item));}
     }
     assert.equal(seen.size,count);assert.equal(JSON.stringify(items),snapshot);
     for(const item of items)assert.ok(layoutDecorations(items,getItemPage(items,item.id,mobile),mobile).some(p=>p.item.id===item.id));
@@ -64,13 +62,57 @@ test('120 个满分挂件也能逐批查看，定位新挂件',()=>{
     assert.equal(seen.size,120);assert.ok(layoutDecorations(items,getItemPage(items,items[119].id,mobile),mobile).some(p=>p.item.id===items[119].id));
   }
 });
+
+test('同得7分时自然散落在上层，刷新稳定、翻批可达且不串层',()=>{
+  const items=makeDemo(120).map(item=>({...item,score:7}));
+  for(const mobile of [true,false]){
+    const first=layoutDecorations(items,0,mobile);
+    assert(first.length>3&&first.length<=(mobile?6:8));
+    assert.deepEqual(layoutDecorations([...items],0,mobile),first);
+    assert.equal(new Set(first.map(p=>p.y)).size,first.length);
+    for(const p of first)assert(p.y>=layerRegions.upper.minY&&p.y<=layerRegions.upper.maxY);
+    for(const item of items)assert(layoutDecorations(items,getItemPage(items,item.id,mobile),mobile).some(p=>p.item.id===item.id));
+    const extended=[...items,{...items[0],id:'extra',createdAt:'2027-01-01T00:00:00Z'}];
+    for(const item of items){const positioned=layoutDecorations(extended,getItemPage(extended,item.id,mobile),mobile).find(p=>p.item.id===item.id)!;assert.equal(positioned.y,getDecorationHeight(item));}
+  }
+});
+test('最拥挤时所有层仍保有间距，随机点始终位于树身范围内',()=>{
+  const items=makeDemo(120);
+  for(const mobile of [true,false])for(let page=0;page<getPageCount(items,mobile);page++){
+    const points=layoutDecorations(items,page,mobile);
+    for(const point of points){
+      const region=layerRegions[getDecorationLayer(point.item)];
+      assert(point.y>=region.minY&&point.y<=region.maxY);assert(Math.abs(point.x-50)<=region.halfWidth);
+    }
+    for(let i=0;i<points.length;i++)for(let j=i+1;j<points.length;j++)assert(Math.hypot(points[i].x-points[j].x,(points[i].y-points[j].y)*1.26)>=(mobile?9.999:8.299));
+  }
+});
+
+test('每人独立抽取真实高度，跨设备、刷新和换批次都不改变；最高者以全树实际高度为准',()=>{
+  assert.equal(getTreeLeader([]),undefined);
+  const items=makeDemo(120).map(item=>({...item,score:7})),leader=getTreeLeader(items)!;
+  assert.equal(new Set(items.map(getDecorationHeight)).size,items.length);
+  assert.equal(getTreeLeader([...items].reverse())?.id,leader.id);
+  for(const mobile of [true,false]){
+    const all=Array.from({length:getPageCount(items,mobile)},(_,page)=>layoutDecorations(items,page,mobile)).flat();
+    assert.equal(all.length,120);assert.equal(new Set(all.map(p=>p.item.id)).size,120);
+    const physicallyHighest=[...all].sort((a,b)=>a.y-b.y)[0];assert.equal(physicallyHighest.item.id,leader.id);
+    assert.equal(physicallyHighest.y,getDecorationHeight(leader));
+    const first=layoutDecorations(items,0,mobile);
+    assert(!first.some(p=>p.item.id===leader.id),'样本最高者不在首批，以此验证不是仅对可见挂件评选');
+  }
+  const ordered=[...items].sort((a,b)=>getDecorationHeight(a)-getDecorationHeight(b));
+  const luckySeven=ordered[0],unluckyEight={...ordered.at(-1)!,score:8};
+  assert.equal(getTreeLeader([unluckyEight,luckySeven])?.id,luckySeven.id);
+  const higherTier={...unluckyEight,score:9};assert.equal(getTreeLeader([luckySeven,higherTier])?.id,higherTier.id);
+});
 test('旧版与正式挂件混合分页不丢失，保留每份成绩的分层含义',()=>{
   const modern=makeDemo(120),legacy=makeDemo(60).map((d,i)=>({...d,id:`legacy-${i}`,score:i%8,maxScore:undefined}));
   const items=[...legacy,...modern];
   for(const mobile of [false,true]){
-    const seen=new Set<string>();const slots=mobile?mobileSlots:desktopSlots;
+    const seen=new Set<string>();
     for(let page=0;page<getPageCount(items,mobile);page++)for(const p of layoutDecorations(items,page,mobile)){
-      seen.add(p.item.id);assert.ok(slots[getDecorationLayer(p.item)].some(s=>s.x===p.x&&s.y===p.y));
+      seen.add(p.item.id);const region=layerRegions[getDecorationLayer(p.item)];assert(p.y>=region.minY&&p.y<=region.maxY);
     }
     assert.equal(seen.size,180);
     for(const item of items)assert.ok(layoutDecorations(items,getItemPage(items,item.id,mobile),mobile).some(p=>p.item.id===item.id));

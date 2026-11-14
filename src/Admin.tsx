@@ -36,7 +36,7 @@ export default function Admin(){
   }
   return <main className="admin-page">
     <header className="admin-header"><a href={import.meta.env.BASE_URL}>返回圣诞树</a>{repository&&<button type="button" disabled={busy} onClick={()=>{signOut();setError('');}}>退出管理</button>}</header>
-    <h1>树主管理</h1>
+    <h1>树主小屋</h1>
     {!repository?<section className="admin-login">
       <p>只为树主人保留的小入口。</p>
       <form onSubmit={signIn}>

@@ -25,3 +25,16 @@ input,textarea{width:100%;background:#fffdf8;border:1.5px solid #dcd1be;border-r
 .answer-options>button.answer-wrong{border-color:#cf9483;background:#f9ebe4;color:#ae5e50;opacity:1}
 .answer-options>button.answer-wrong>span{background:#c77f6f;border-color:#c77f6f;color:#fffaf4}
 .answer-options>button.answer-wrong>svg{color:#b05d50}
+.tree-toolbar{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:8px}
+.finder-button{min-height:36px;padding:7px 10px;background:none;color:#85745d;font-size:12px;border-radius:18px}
+.finder-button:hover{background:#f3ecdd}.finder-button span{color:#a29078;margin-left:3px}
+.finder-modal{width:min(620px,calc(100vw - 24px))}.finder-search{margin-bottom:18px}
+.finder-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.finder-card{background:#faf5e9;border:1px solid #e5dac5;border-radius:15px;padding:13px 8px;display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
+.finder-card:hover{border-color:#94a080;background:#f0f1e5}.finder-card>.ornament-art{width:48px;height:54px}
+.finder-name{max-width:100%;font-size:13px;overflow-wrap:anywhere;line-height:1.5}.finder-score{font-size:11px;color:#9c8c73}
+.finder-note{font-size:12px;line-height:1.8;color:#948675;margin:-5px 0 17px}.finder-empty{padding:24px 0;text-align:center;color:#948675;font-size:13px}
+@media(max-width:640px){.finder-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.finder-card{padding:12px 6px}.finder-name{font-size:12px}.tree-ornament{width:44px;height:44px}.tree-ornament>.ornament-art{width:32px;height:36px;display:block;margin:auto}}
+.site-header{gap:14px;align-items:center}.cottage-link{color:#8d806d;font-size:12px;text-decoration:none;padding:8px 6px;border-radius:10px}.cottage-link:hover{background:#f3ecdd}.cottage-link:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.treetop-leader{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:#f2e9d8;color:#96805c;border:1px solid #e7d9bc;border-radius:18px;padding:8px 12px;margin:12px 0 0;max-width:100%;font-size:11px;line-height:1.6}
+.treetop-leader strong{color:#7b7657;font-weight:500;overflow-wrap:anywhere}.treetop-leader>svg{width:13px;height:13px}.treetop-leader>svg:last-child{width:11px}.treetop-leader:hover{background:#ede2cc}

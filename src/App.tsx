@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { treeConfig, questions, isDemoQuestions, QUIZ_VERSION } from './config';
-import { colors, shapes, shapeNames, getLayer, getDecorationLayer, getMaxScore, getScoreMessage, MAX_SCORE, LEGACY_MAX_SCORE, layerNames, getPageCount, getItemPage, layoutDecorations, calculateScore, makeDemo, type Decoration, type OrnamentDesign } from './model';
+import { colors, shapes, shapeNames, getLayer, getDecorationLayer, getMaxScore, getScoreMessage, getTreeLeader, MAX_SCORE, LEGACY_MAX_SCORE, layerNames, getPageCount, getItemPage, layoutDecorations, calculateScore, makeDemo, type Decoration, type OrnamentDesign } from './model';
 import { decorationRepository, usesCloudStorage } from './storage';
 import { Ornament } from './components/Ornament';
 import { Icon } from './components/Icons';
 import { SceneDetails } from './components/SceneDetails';
+import { readMyDecorationIds, rememberDecoration } from './myDecorations';
 
 type Screen='home'|'design'|'quiz'|'result';
 const initialDesign:OrnamentDesign={kind:'preset',shape:'ball',color:'red',version:1};
@@ -27,7 +28,13 @@ export default function App(){
   const [page,setPage]=useState(0),[detail,setDetail]=useState<Decoration|null>(null),[highlight,setHighlight]=useState<string|null>(null);
   const [flying,setFlying]=useState(false),[saving,setSaving]=useState(false),[toast,setToast]=useState(''),[help,setHelp]=useState(false);
   const [simulation,setSimulation]=useState<number|null>(null),[devOpen,setDevOpen]=useState(false);
-  const mobile=useMobile(),displayItems=simulation===null?items:makeDemo(simulation);
+  const [simulationScore,setSimulationScore]=useState<number|null>(null);
+  const [finder,setFinder]=useState<'all'|'mine'|null>(null),[search,setSearch]=useState('');
+  const [myIds,setMyIds]=useState(readMyDecorationIds);
+  const mobile=useMobile(),displayItems=useMemo(()=>simulation===null?items:makeDemo(simulation).map(item=>simulationScore===null?item:{...item,score:simulationScore}),[items,simulation,simulationScore]);
+  const leader=getTreeLeader(displayItems);
+  const myItems=displayItems.filter(item=>myIds.includes(item.id));
+  const foundItems=(finder==='mine'?myItems:displayItems).filter(item=>item.nickname.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const pageCount=getPageCount(displayItems,mobile),positions=layoutDecorations(displayItems,page,mobile);
   const score=calculateScore(answers,questions.map(q=>q.correct));
   const timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
@@ -35,7 +42,7 @@ export default function App(){
   const refreshTicket=useRef(0);
   useEffect(()=>{decorationRepository.list().then(setItems).catch(e=>setError(e.message)).finally(()=>setLoaded(true));return()=>clearTimeout(timer.current);},[]);
   useEffect(()=>{setPage(highlight&&simulation===null?getItemPage(items,highlight,mobile):0);},[mobile,simulation]);
-  useEffect(()=>{if(!highlight)return;const t=setTimeout(()=>setHighlight(null),8500);return()=>clearTimeout(t);},[highlight]);
+  useEffect(()=>{if(!highlight||detail)return;const t=setTimeout(()=>setHighlight(null),8500);return()=>clearTimeout(t);},[highlight,detail]);
   useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(''),6500);return()=>clearTimeout(t);},[toast]);
   useEffect(()=>{if(import.meta.env.DEV){const f=(e:KeyboardEvent)=>{if(e.ctrlKey&&e.shiftKey&&e.code==='KeyD'){e.preventDefault();setDevOpen(v=>!v);}};window.addEventListener('keydown',f);return()=>window.removeEventListener('keydown',f);}},[]);
   useEffect(()=>{
@@ -48,21 +55,25 @@ export default function App(){
   function start(){setError('');setAnswers([]);setQuestionIndex(0);setSelection(null);setMessage('');draftId.current=crypto.randomUUID();setScreen('design');}
   function choose(index:number){if(selection!==null)return;setSelection(index);const next=[...answers,index];setAnswers(next);timer.current=setTimeout(()=>{setSelection(null);if(questionIndex===questions.length-1)setScreen('result');else setQuestionIndex(q=>q+1);},650);}
   function closeFlow(){clearTimeout(timer.current);setSelection(null);setScreen('home');}
+  function find(mode:'all'|'mine'){setSearch('');setFinder(mode);}
+  function locate(item:Decoration){setPage(getItemPage(displayItems,item.id,mobile));setHighlight(item.id);setFinder(null);setDetail(item);}
   async function submit(){
     if(submitting.current)return;submitting.current=true;setSaving(true);setError('');
     const item:Decoration={id:draftId.current,nickname:nickname.trim(),message:message.trim(),score,maxScore:MAX_SCORE,design:{...design},createdAt:new Date().toISOString()};
-    try {const saved=await decorationRepository.add(item,{answers,quizVersion:QUIZ_VERSION});++refreshTicket.current;const next=await decorationRepository.list();setItems(next);setSimulation(null);setScreen('home');setPage(getItemPage(next,saved.id,mobile));setHighlight(saved.id);setFlying(true);setTimeout(()=>{setFlying(false);setToast('挂好啦！');},1400);}
+    try {const saved=await decorationRepository.add(item,{answers,quizVersion:QUIZ_VERSION});rememberDecoration(saved.id);setMyIds(readMyDecorationIds());++refreshTicket.current;const next=await decorationRepository.list();setItems(next);setSimulation(null);setScreen('home');setPage(getItemPage(next,saved.id,mobile));setHighlight(saved.id);setFlying(true);setTimeout(()=>{setFlying(false);setToast('挂好啦！');},1400);}
     catch(e){setError((e as Error).message);}finally{setSaving(false);submitting.current=false;}
   }
   const colorName=colors.find(c=>c.id===design.color)!.name;
   return <div className="app-shell">
     <header className="site-header">
+      <a className="cottage-link" href="#admin">树主小屋</a>
       <button className="help-button" onClick={()=>setHelp(true)} aria-label="怎么玩">怎么玩</button>
     </header>
     <main className="home-main">
       <section className="intro">
         <h1>{treeConfig.title}</h1>
         <p className="participant-count">{simulation===null&&!loaded?'正在读取挂件…':simulation===null&&error&&items.length===0?'暂未连接共享圣诞树':<><b>{displayItems.length}</b> 人装饰过</>}{simulation!==null&&<span className="simulation-label">模拟预览</span>}</p>
+        {leader&&<button className="treetop-leader" onClick={()=>locate(leader)} aria-label={`查看当前挂得最高的${leader.nickname}的挂件`}><Icon name="sparkle"/><span>目前挂得最高的是 <strong>{leader.nickname}</strong></span><Icon name="arrow"/></button>}
       </section>
       <section className="tree-scene" aria-label="可以点击挂件的圣诞树">
         <div className="tree-stage" data-testid="tree-stage">
@@ -74,12 +85,24 @@ export default function App(){
           <div className="light-layer" aria-hidden="true">{lights.map((l,i)=><i key={i} style={{left:`${l.x}%`,top:`${l.y}%`,animationDelay:l.delay}}/>)}</div>
           {positions.map(({item,x,y})=><button key={item.id} data-testid="tree-ornament" data-score={item.score} data-layer={getDecorationLayer(item)} data-id={item.id} className={`tree-ornament ${highlight===item.id?'new-ornament':''} ${highlight===item.id&&flying?'flying':''}`} style={{left:`${x}%`,top:`${y}%`,'--flight-x':`${(50-x)*4}px`,'--flight-y':`${(108-y)*6}px`} as CSSProperties} onClick={()=>setDetail(item)} aria-label={`${item.nickname}的${shapeNames[item.design.shape]}，答对${item.score}/${getMaxScore(item)}题`}><Ornament design={item.design}/>{highlight===item.id&&<span className="new-indicator"/>}</button>)}
         </div>
-        {pageCount>1&&<div className="tree-toolbar"><button onClick={()=>{setPage(p=>(p+1)%pageCount);setHighlight(null);}} className="batch-button"><Icon name="refresh"/>换一批装饰 <small>{page%pageCount+1}/{pageCount}</small></button></div>}
+        <div className="tree-toolbar">
+          {pageCount>1&&<button onClick={()=>{setPage(p=>(p+1)%pageCount);setHighlight(null);}} className="batch-button"><Icon name="refresh"/>换一批装饰 <small>{page%pageCount+1}/{pageCount}</small></button>}
+          <button className="finder-button" onClick={()=>find('all')}>全部挂件 <span>{displayItems.length}</span></button>
+          <button className="finder-button" onClick={()=>find('mine')}>我的挂件</button>
+        </div>
       </section>
       <button className="primary main-cta" onClick={start} disabled={!loaded||flying}><Icon name="heart"/>我也来挂一个</button>
     </main>
     {screen==='home'&&error&&<div className="global-error" role="alert">{error}</div>}
     {toast&&<div className="toast" role="status"><Icon name="check"/>{toast}</div>}
+    {finder&&<Modal onClose={()=>setFinder(null)} label={finder==='mine'?'我的挂件':'全部挂件'} className="finder-modal">
+      <h2 className="modal-title">{finder==='mine'?'我的挂件':'全部挂件'}</h2>
+      <input className="finder-search" aria-label="搜索挂件昵称" placeholder="输入昵称，找到自己或朋友" value={search} onChange={event=>setSearch(event.target.value)}/>
+      {finder==='mine'&&<p className="finder-note">这里记着你在当前浏览器挂过的挂件。</p>}
+      {foundItems.length>0?<div className="finder-grid">{foundItems.map(item=><button key={item.id} className="finder-card" onClick={()=>locate(item)} aria-label={`查看并定位${item.nickname}的挂件`}>
+        <Ornament design={item.design} hanging={false}/><span className="finder-name">{item.nickname}</span><span className="finder-score">{item.score}/{getMaxScore(item)} 分</span>
+      </button>)}</div>:<div className="finder-empty"><p>{finder==='mine'?'这个浏览器里还没有记下你的挂件。':'没有找到，试试其他昵称吧。'}</p>{finder==='mine'&&<button className="finder-button" onClick={()=>find('all')}>按昵称找一找</button>}</div>}
+    </Modal>}
     {screen!=='home'&&<Modal onClose={closeFlow} label={screen==='design'?'设计圣诞挂件':screen==='quiz'?`${questions.length}道圣诞小题`:'答题成绩与留言'} className={screen==='design'?'design-modal':''}>
       {screen==='design'?<>
         <h2 className="modal-title">设计你的挂件</h2>
@@ -118,8 +141,9 @@ export default function App(){
     {help&&<Modal onClose={()=>setHelp(false)} label="怎么玩" className="help-modal">
       <h2>怎么玩</h2><ol><li>选挂件、配颜色，写下昵称。</li><li>回答{questions.length}道题，答对越多挂得越高。</li><li>留下留言，把挂件挂到树上。</li></ol>
       <p className="help-tip">点击树上的挂件，就能看到朋友的留言。</p>
+      <p className="help-tip">成绩决定挂树区域，运气决定区域内的高低。最高的位置会为幸运的朋友亮名。</p>
       <button className="primary" onClick={()=>{setHelp(false);start();}}>开始装饰<Icon name="arrow"/></button>
     </Modal>}
-    {import.meta.env.DEV&&devOpen&&<aside className="dev-panel" aria-label="开发调试"><button className="icon-button" onClick={()=>setDevOpen(false)} aria-label="关闭调试"><Icon name="close"/></button><b>开发预览 · 不修改存档</b><div>{[10,30,60,120].map(n=><button key={n} onClick={()=>{setSimulation(n);setPage(0);}}>模拟 {n} 人</button>)}</div><button onClick={()=>setSimulation(null)}>回到我的存档（{items.length}）</button><small>显示 {positions.length} / {displayItems.length}，共 {pageCount} 批<br/>Ctrl + Shift + D 开关</small></aside>}
+    {import.meta.env.DEV&&devOpen&&<aside className="dev-panel" aria-label="开发调试"><button className="icon-button" onClick={()=>setDevOpen(false)} aria-label="关闭调试"><Icon name="close"/></button><b>开发预览 · 不修改存档</b><div>{[10,30,60,120].map(n=><button key={n} onClick={()=>{setSimulation(n);setSimulationScore(null);setPage(0);}}>模拟 {n} 人</button>)}<button onClick={()=>{setSimulation(30);setSimulationScore(7);setPage(0);}}>模拟 30 人同得 7 分</button></div><button onClick={()=>setSimulation(null)}>回到我的存档（{items.length}）</button><small>显示 {positions.length} / {displayItems.length}，共 {pageCount} 批<br/>Ctrl + Shift + D 开关</small></aside>}
   </div>;
 }
