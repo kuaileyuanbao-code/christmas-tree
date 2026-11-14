@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { treeConfig, questions, isDemoQuestions, QUIZ_VERSION } from './config';
-import { colors, shapes, shapeNames, getLayer, getDecorationLayer, getMaxScore, getScoreMessage, getTreeLeader, MAX_SCORE, LEGACY_MAX_SCORE, layerNames, getPageCount, getItemPage, layoutDecorations, calculateScore, makeDemo, type Decoration, type OrnamentDesign } from './model';
+import { colors, shapes, shapeNames, getLayer, getDecorationLayer, getMaxScore, getScoreMessage, getTreeLeader, MAX_SCORE, layerNames, getPageCount, getItemPage, layoutDecorations, calculateScore, makeDemo, type Decoration, type OrnamentDesign } from './model';
 import { decorationRepository, usesCloudStorage } from './storage';
 import { Ornament } from './components/Ornament';
 import { Icon } from './components/Icons';
@@ -34,7 +34,7 @@ export default function App(){
   const mobile=useMobile(),displayItems=useMemo(()=>simulation===null?items:makeDemo(simulation).map(item=>simulationScore===null?item:{...item,score:simulationScore}),[items,simulation,simulationScore]);
   const leader=getTreeLeader(displayItems);
   const myItems=displayItems.filter(item=>myIds.includes(item.id));
-  const foundItems=(finder==='mine'?myItems:displayItems).filter(item=>item.nickname.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+  const foundItems=finder==='mine'?myItems:displayItems.filter(item=>item.nickname.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const pageCount=getPageCount(displayItems,mobile),positions=layoutDecorations(displayItems,page,mobile);
   const score=calculateScore(answers,questions.map(q=>q.correct));
   const timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
@@ -97,11 +97,10 @@ export default function App(){
     {toast&&<div className="toast" role="status"><Icon name="check"/>{toast}</div>}
     {finder&&<Modal onClose={()=>setFinder(null)} label={finder==='mine'?'我的挂件':'全部挂件'} className="finder-modal">
       <h2 className="modal-title">{finder==='mine'?'我的挂件':'全部挂件'}</h2>
-      <input className="finder-search" aria-label="搜索挂件昵称" placeholder="输入昵称，找到自己或朋友" value={search} onChange={event=>setSearch(event.target.value)}/>
-      {finder==='mine'&&<p className="finder-note">这里记着你在当前浏览器挂过的挂件。</p>}
+      {finder==='all'&&<input className="finder-search" aria-label="搜索挂件昵称" placeholder="输入昵称，找到自己或朋友" value={search} onChange={event=>setSearch(event.target.value)}/>}
       {foundItems.length>0?<div className="finder-grid">{foundItems.map(item=><button key={item.id} className="finder-card" onClick={()=>locate(item)} aria-label={`查看并定位${item.nickname}的挂件`}>
-        <Ornament design={item.design} hanging={false}/><span className="finder-name">{item.nickname}</span><span className="finder-score">{item.score}/{getMaxScore(item)} 分</span>
-      </button>)}</div>:<div className="finder-empty"><p>{finder==='mine'?'这个浏览器里还没有记下你的挂件。':'没有找到，试试其他昵称吧。'}</p>{finder==='mine'&&<button className="finder-button" onClick={()=>find('all')}>按昵称找一找</button>}</div>}
+        <Ornament design={item.design} hanging={false}/><span className="finder-name">{item.nickname}</span>{finder==='mine'&&<span className="finder-score">{item.score}/{getMaxScore(item)} 分</span>}
+      </button>)}</div>:<p className="finder-empty">{finder==='mine'?'还没有自己的挂件。':'没有找到，试试其他昵称吧。'}</p>}
     </Modal>}
     {screen!=='home'&&<Modal onClose={closeFlow} label={screen==='design'?'设计圣诞挂件':screen==='quiz'?`${questions.length}道圣诞小题`:'答题成绩与留言'} className={screen==='design'?'design-modal':''}>
       {screen==='design'?<>
@@ -135,7 +134,6 @@ export default function App(){
     </Modal>}
     {detail&&<Modal onClose={()=>setDetail(null)} label={`${detail.nickname}的圣诞祝福`} className="detail-modal">
       <div className="detail-art"><Ornament design={detail.design}/></div><h2>{detail.nickname}</h2>
-      <p className="detail-meta">{shapeNames[detail.design.shape]} · {colors.find(c=>c.id===detail.design.color)!.name} · 答对 {detail.score}/{getMaxScore(detail)} 题{getMaxScore(detail)===LEGACY_MAX_SCORE&&'（旧版）'}</p>
       <blockquote>{detail.message||'圣诞快乐！'}</blockquote>{detail.demo&&<p className="demo-note">模拟留言</p>}
     </Modal>}
     {help&&<Modal onClose={()=>setHelp(false)} label="怎么玩" className="help-modal">
