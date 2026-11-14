@@ -25,12 +25,13 @@ try {
   assert.equal(await page.evaluate(()=>localStorage.getItem('my-christmas-tree:v1')),raw);
   assert.equal(await page.locator('[data-id="legacy-7"]').getAttribute('data-layer'),'top');
   assert.equal(await page.locator('[data-id="formal-seven"]').getAttribute('data-layer'),'upper');
-  await page.locator('[data-id="legacy-7"]').click();
-  assert.ok((await page.locator('.detail-meta').innerText()).includes('7/7 题（旧版）'));
+  assert.ok((await page.locator('[data-id="legacy-7"]').getAttribute('aria-label')).includes('7/7'));
+  await page.locator('[data-id="legacy-7"]').press('Enter');
+  assert.equal(await page.locator('.detail-meta').count(),0);
   assert.equal(await page.locator('blockquote').innerText(),'旧留言7');
   await page.waitForTimeout(300);await page.screenshot({path:'screenshots/legacy-detail.png'});
   await page.getByRole('button',{name:'关闭',exact:true}).click();
-  note('PASS 旧7分仍在树顶，正式7分在上层；旧详情显示7/7与旧留言；读取不覆盖存档');
+  note('PASS 旧7分仍在树顶，正式7分在上层；旧留言保留；详情按要求不显示成绩；读取不覆盖存档');
 
   await page.getByRole('button',{name:'我也来挂一个'}).click();
   await page.getByRole('button',{name:'爱心',exact:true}).click();await page.getByRole('button',{name:'奶油白',exact:true}).click();
@@ -63,11 +64,11 @@ try {
   await page.locator('#message').fill('旧树继续，新的祝福。');
   await page.waitForTimeout(300);await page.screenshot({path:'screenshots/formal-mobile-result.png'});
   await page.getByRole('button',{name:'把挂件挂上去'}).click();
-  const newItem=page.getByRole('button',{name:/十题新朋友的/});await newItem.waitFor();
+  const newItem=page.getByRole('button',{name:/^十题新朋友的/});await newItem.waitFor();
   assert.equal(await newItem.getAttribute('data-layer'),'top');
   assert.ok(await newItem.evaluate(el=>el.classList.contains('new-ornament')));
-  await page.waitForTimeout(1450);await newItem.click();
-  assert.ok((await page.locator('.detail-meta').innerText()).includes('9/10 题'));
+  await page.waitForTimeout(1450);await newItem.press('Enter');
+  assert.equal(await page.locator('.detail-meta').count(),0);
   assert.equal(await page.locator('blockquote').innerText(),'旧树继续，新的祝福。');
   await page.getByRole('button',{name:'关闭',exact:true}).click();
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('my-christmas-tree:v1')));
@@ -76,16 +77,13 @@ try {
   assert.deepEqual(saved.find(d=>d.id===existing.id),existing);
   assert.equal(saved.at(-1).maxScore,10);assert.equal(saved.at(-1).score,9);
   note('PASS 新标题与移除指定说明；手机十题与40个选项准确；答错红叉、答对绿勾，未选选项不提示答案');
-  note('PASS 9分文案、留言、提交、树顶自动分批与高亮；旧记录完整保留并标记7分制');
+  note('PASS 9分文案、留言、提交、所有挂件同屏与高亮；旧记录完整保留并标记7分制');
 
   await page.reload();await page.locator('.tree-ornament').first().waitFor();
-  const seen=new Set();const batches=Number((await page.locator('.batch-button small').innerText()).split('/')[1]);
-  for(let i=0;i<batches;i++){
-    const displayed=await page.locator('.tree-ornament').evaluateAll(nodes=>nodes.map(n=>({id:n.dataset.id,layer:n.dataset.layer})));
-    for(const item of displayed){seen.add(item.id);assert.equal(item.layer,getDecorationLayer(saved.find(d=>d.id===item.id)));}
-    await page.locator('.batch-button').click();
-  }
+  const seen=new Set();assert.equal(await page.locator('.batch-button').count(),0);
+  const displayed=await page.locator('.tree-ornament').evaluateAll(nodes=>nodes.map(n=>({id:n.dataset.id,layer:n.dataset.layer})));
+  for(const item of displayed){seen.add(item.id);assert.equal(item.layer,getDecorationLayer(saved.find(d=>d.id===item.id)));}
   assert.equal(seen.size,10);assert.deepEqual(errors,[]);
-  note('PASS 刷新后全部新旧挂件可逐批查看，分层一致，无丢失或运行错误');
+  note('PASS 刷新后全部新旧挂件同屏显示，分层一致，无丢失或运行错误');
   await writeFile('screenshots/compatibility-verification.txt',report.join('\n'),'utf8');
 }finally {await browser.close();}

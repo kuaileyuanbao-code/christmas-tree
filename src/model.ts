@@ -37,7 +37,7 @@ function fraction(value:string){
   return (((h^(h>>>16))>>>0)+.5)/4294967296;
 }
 function halfWidthAt(item:Decoration,y:number){const region=layerRegions[getDecorationLayer(item)];return region.halfWidth*(.76+.24*(y-region.minY)/(region.maxY-region.minY));}
-// 每枚挂件独立抽取高度，使用云端记录中的ID与创建时间；不依赖提交顺序或显示批次。
+// 每枚挂件独立抽取高度，使用云端记录中的ID与创建时间；不依赖提交顺序。
 // 手机和电脑共用同一高度，避让只调整左右位置，绝不改变运气或冠军。
 export function getDecorationHeight(item:Decoration){
   const region=layerRegions[getDecorationLayer(item)];
@@ -46,31 +46,27 @@ export function getDecorationHeight(item:Decoration){
 export function getTreeLeader(items:Decoration[]):Decoration|undefined {
   return items.reduce<Decoration|undefined>((best,item)=>!best||getDecorationHeight(item)<getDecorationHeight(best)||(getDecorationHeight(item)===getDecorationHeight(best)&&item.id<best.id)?item:best,undefined);
 }
-type PositionedDecoration={item:Decoration;x:number;y:number};
-const layouts=new WeakMap<Decoration[],Map<boolean,PositionedDecoration[][]>>();
-function pagesFor(items:Decoration[],mobile:boolean){
+type PositionedDecoration={item:Decoration;x:number;y:number;scale:number};
+const layouts=new WeakMap<Decoration[],Map<boolean,PositionedDecoration[]>>();
+export function layoutDecorations(items:Decoration[],mobile=false){
   const cached=layouts.get(items)?.get(mobile);if(cached)return cached;
-  const capacities=mobile?[2,6,6,8,10]:[3,8,8,10,12],spacing=mobile?10:8.3;
-  const pages:PositionedDecoration[][]=[[]];
+  const comfortable=mobile?[4,10,12,16,16]:[5,12,14,18,20],spacing=mobile?10:8.3;
+  const counts=layers.map(layer=>items.filter(item=>getDecorationLayer(item)===layer).length);
+  const positions:PositionedDecoration[]=[];
   const ordered=[...items].sort((a,b)=>layers.indexOf(getDecorationLayer(a))-layers.indexOf(getDecorationLayer(b))||a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id));
   for(const item of ordered){
     const layer=getDecorationLayer(item),y=getDecorationHeight(item),halfWidth=halfWidthAt(item,y);
-    let placed=false;
-    for(const page of pages){
-      if(page.filter(p=>getDecorationLayer(p.item)===layer).length>=capacities[layers.indexOf(layer)])continue;
-      for(let candidate=0;candidate<120;candidate++){
-        const x=50+(fraction(`side-v1:${item.id}:${item.createdAt}:${candidate}`)*2-1)*halfWidth;
-        if(page.every(p=>(p.x-x)**2+((p.y-y)*1.26)**2>=spacing**2)){
-          page.push({item,x,y});placed=true;break;
-        }
-      }
-      if(placed)break;
+    const index=layers.indexOf(layer),scale=Math.max(.6,Math.min(1,Math.sqrt(comfortable[index]/counts[index])));
+    let bestX=50,bestQuality=-1;
+    for(let candidate=0;candidate<120;candidate++){
+      const x=50+(fraction(`side-v1:${item.id}:${item.createdAt}:${candidate}`)*2-1)*halfWidth;
+      const quality=positions.length?Math.min(...positions.map(p=>((p.x-x)**2+((p.y-y)*1.26)**2)/(spacing*(p.scale+scale)/2)**2)):1;
+      if(quality>bestQuality){bestX=x;bestQuality=quality;}
+      if(quality>=1)break;
     }
-    if(!placed)pages.push([{item,x:50+(fraction(`side-v1:${item.id}:${item.createdAt}:0`)*2-1)*halfWidth,y}]);
+    // 全部保留在树上。拥挤时采用重叠最少的位置，不改高度、不丢到其他页。
+    positions.push({item,x:bestX,y,scale});
   }
-  const cache=layouts.get(items)??new Map<boolean,PositionedDecoration[][]>();cache.set(mobile,pages);layouts.set(items,cache);return pages;
+  const cache=layouts.get(items)??new Map<boolean,PositionedDecoration[]>();cache.set(mobile,positions);layouts.set(items,cache);return positions;
 }
-export function getPageCount(items:Decoration[],mobile=false){return pagesFor(items,mobile).length;}
-export function getItemPage(items:Decoration[],id:string,mobile=false){return Math.max(0,pagesFor(items,mobile).findIndex(page=>page.some(p=>p.item.id===id)));}
-export function layoutDecorations(items:Decoration[],page:number,mobile=false){const pages=pagesFor(items,mobile);return pages[((page%pages.length)+pages.length)%pages.length];}
 export function makeDemo(count:number):Decoration[] { return Array.from({length:count},(_,i)=>({id:`demo-${count}-${i}`,nickname:['小满','阿栗','冬眠小熊','桃子','Momo','一颗松果','小鹿','星星'][i%8]+(i>=8?`${i+1}`:''),message:['愿你这一年，心里有光，身边有爱。','把所有美好的事，悄悄挂在你的树上。','下次见面，一起喝杯热可可吧！','圣诞快乐，愿平凡的日子也闪闪发光。'][i%4],score:i%(MAX_SCORE+1),maxScore:MAX_SCORE,design:{kind:'preset',shape:shapes[i%shapes.length],color:colors[i%colors.length].id,version:1},createdAt:new Date(2026,11,1,0,i).toISOString(),demo:true})); }

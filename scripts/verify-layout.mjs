@@ -1,6 +1,6 @@
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
-import { makeDemo, getItemPage } from '../src/model.ts';
+import { makeDemo } from '../src/model.ts';
 const browser=await chromium.launch({channel:'msedge',headless:true});
 const context=await browser.newContext();
 const page=await context.newPage();
@@ -26,9 +26,9 @@ try {
  await page.waitForTimeout(1500);
  assert.equal(await page.locator('.new-ornament').count(),1);
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('my-christmas-tree:v1')));
- const expectedPage=getItemPage(saved,saved.find(d=>d.nickname==='最后一颗星').id,true)+1;
- assert.ok((await page.locator('.batch-button small').innerText()).startsWith(`${expectedPage}/`));
+ assert.equal(await page.locator('.batch-button').count(),0);
+ assert.equal(await page.locator('.tree-ornament').count(),121);
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('my-christmas-tree:v1')).length),121);
- console.log(`PASS 120人存档上开启模拟，再提交10分挂件：回归真实存档，自动定位第${expectedPage}批，总数121`);
+ console.log('PASS 120人存档上开启模拟，再提交10分挂件：回归真实存档，121枚同屏且新挂件高亮');
  await page.screenshot({path:'screenshots/mobile-new-highlight.png',fullPage:true});
 }finally{await browser.close();}

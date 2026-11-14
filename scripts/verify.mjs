@@ -44,7 +44,7 @@ try {
     await page.waitForTimeout(1450);
     const expected=score===10?'top':score===7?'upper':score===5?'middleUpper':score===3?'middleLower':'bottom';
     assert.equal(await item.getAttribute('data-layer'),expected);
-    await item.click();await page.getByRole('dialog').waitFor();
+    await item.press('Enter');await page.getByRole('dialog').waitFor();
     assert.ok((await page.locator('blockquote').innerText()).includes(`第 ${score} 份祝福`));
     await page.getByRole('button',{name:'关闭',exact:true}).click();
     note(`PASS ${score}分：DIY → 十题 → 成绩 → 留言 → 飞入 → ${expected} → 详情`);
@@ -60,20 +60,14 @@ try {
     for(const count of [10,30,60,120]){
       await page.getByRole('button',{name:`模拟 ${count} 人`,exact:true}).click();
       await page.getByRole('button',{name:'关闭调试'}).click();
-      const seen=new Set();let batches=1;const batch=page.locator('.batch-button');
-      if(await batch.count())batches=Number((await batch.locator('small').innerText()).split('/')[1]);
-      let maximum=0;
-      for(let i=0;i<batches;i++){
-        const ornaments=await page.locator('.tree-ornament').evaluateAll(nodes=>nodes.map(n=>({id:n.dataset.id,score:+n.dataset.score,layer:n.dataset.layer,x:parseFloat(n.style.left),y:parseFloat(n.style.top)})));
-        maximum=Math.max(maximum,ornaments.length);assert.ok(ornaments.length<=(mobile?28:40));
-        for(const o of ornaments){seen.add(o.id);assert.ok(o.x>=15&&o.x<=87&&o.y>12&&o.y<=90);}
-        if(batches>1)await batch.click();
-      }
-      assert.equal(seen.size,count);
+      assert.equal(await page.locator('.batch-button').count(),0);
+      const ornaments=await page.locator('.tree-ornament').evaluateAll(nodes=>nodes.map(n=>({id:n.dataset.id,x:parseFloat(n.style.left),y:parseFloat(n.style.top)})));
+      assert.equal(ornaments.length,count);assert.equal(new Set(ornaments.map(o=>o.id)).size,count);
+      for(const o of ornaments)assert.ok(o.x>=15&&o.x<=87&&o.y>12&&o.y<=90);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
       if(count===30||count===120){await page.screenshot({path:`screenshots/${mobile?'mobile':'desktop'}-${count}-friends.png`,fullPage:true});}
       await page.keyboard.press('Control+Shift+D');
-      note(`PASS ${mobile?'390px 手机':'1440px 电脑'} ${count}人：同屏最多${maximum}，${batches}批无数据丢失、无横向溢出`);
+      note(`PASS ${mobile?'390px 手机':'1440px 电脑'} ${count}人：全部${count}枚同屏，无分页、无横向溢出`);
     }
     await page.getByRole('button',{name:/回到我的存档/}).click();await page.getByRole('button',{name:'关闭调试'}).click();
     assert.equal(await page.locator('.tree-ornament').count(),5);
