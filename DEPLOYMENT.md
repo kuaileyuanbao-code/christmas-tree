@@ -6,6 +6,8 @@
 
 ## 1. 现在的结构
 
+当前迁移方向已改为保留GitHub Pages，使用腾讯云CloudBase云函数和文档数据库作为后端。腾讯云接入及迁移顺序见 [cloudbase/api/README.md](cloudbase/api/README.md)。本文件的Cloudflare部署步骤保留为原服务的维护与回退说明；在腾讯云真实后端验收和数据迁移完成前，不切换前端API地址或删除旧服务。
+
 | 部分 | 放在哪里 | 作用 |
 | --- | --- | --- |
 | 当前 React/Vite 页面及所有素材 | GitHub Pages | 同学访问的唯一网页地址 |
@@ -108,14 +110,22 @@ npm run api:deploy
 
 4. **Settings → Pages → Source** 选择 **GitHub Actions**。
 5. 打开 **Actions → Publish Christmas Tree to GitHub Pages → Run workflow**，由你明确点击发布。工作流只支持手动触发，没有配置push自动发布。
-6. 工作流执行 `npm ci`、29项自动测试、类型检查和Vite构建，然后发布 `dist`。构建缺少API地址会失败，不会发布一个偷偷使用localStorage的正式版本。
+6. 工作流执行 `npm ci`、32项自动测试、类型检查和Vite构建，然后发布 `dist`。构建缺少API地址会失败，不会发布一个偷偷使用localStorage的正式版本。
 7. 分享工作流输出的 **GitHub Pages网址**，不是Worker API网址。所有同学用同一个页面地址。
 
 素材地址已使用 `import.meta.env.BASE_URL`，Vite `base` 由仓库路径配置。已本地实测 `/christmas-tree-test/` 下的JS、CSS与树体加载。无需把图片路径手改回 `/assets/`。
 
 ## 5. 管理员删除、备份与旧存档迁移
 
-管理操作使用你电脑上的命令行，网页不增加后台入口，不让同学接触管理员密钥。
+### 独立树主管理页
+
+本地已完成管理页，正式使用前需要确认发布包含本次修改的前端版本。发布后，打开游戏网址并在末尾加 `#admin`，例如 `https://kuaileyuanbao-code.github.io/christmas-tree/#admin`。首页没有管理按钮，知道这个地址也不等于具有管理权限；每次均由后端验证管理密钥。
+
+输入现有 Worker 的 `ADMIN_TOKEN` 后，可以查看当前挂件与留言、刷新列表、导出JSON备份，并在核对昵称和留言后确认移除挂件。移除后公共列表不再显示该挂件，其他设备刷新或下次自动读取时同步；备份仍保留移除记录。该页面不提供一键清空或批量删除。
+
+管理密钥只用于当前页面内存中的鉴权请求，不进入URL、localStorage、sessionStorage、前端源码或公开配置；刷新页面、退出管理后需要重新输入。不要把管理密钥发给同学，也不要将备份上传公开仓库。若其他手机看到“暂未连接共享圣诞树”，应先排查后端网络可达性，人数不能据此判断为0。
+
+下面的命令行管理工具仍然保留，可用于旧存档迁移和维护。
 
 在PowerShell中安全输入管理员密钥供本次终端使用：
 
@@ -197,7 +207,7 @@ npm run build
 
 `test:cloud` 使用本机Microsoft Edge，自动启动隔离的Worker/D1与子路径静态站点，关闭测试浏览器后重开、重启Worker，再检查共享和管理员删除。测试库在忽略目录 `.test-artifacts/`，不会写入你的正式数据库或平时本地D1。
 
-29项自动测试通过；浏览器结果见 `screenshots/cloud-verification.txt`，最新共享版截图是 `screenshots/shared-mobile.png` 与 `screenshots/shared-desktop.png`。真机和线上网络尚未测试，因为尚未部署。
+32项自动测试通过。最初本地共享版联调结果保存在开发电脑的 `screenshots/cloud-verification.txt`，上线验收记录位于被Git忽略的 `backups/`。首次正式发布的完整线上流程已通过；树主人随后反馈手机微信和夸克无法连接后端，该网络可达性问题仍在定位，不应据电脑验收结果推断所有手机均已可用。
 
 旧的单机UI验收脚本和素材历史仍保留。需要时先开 `npm run dev:offline`（5174端口），再运行旧的 `scripts/verify.mjs`、`verify-layout.mjs`、`verify-compatibility.mjs` 或 `capture.mjs`。离线模式仅允许开发，不能用于生产构建。
 

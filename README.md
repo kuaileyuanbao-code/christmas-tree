@@ -8,6 +8,10 @@
 
 **部署、管理员工具、旧存档迁移及真机验收，见 [DEPLOYMENT.md](DEPLOYMENT.md)。**
 
+独立树主管理页已在本地完成，等待确认发布：游戏网址加 `#admin`，输入管理密钥后可查看留言、逐个确认移除挂件及导出备份。首页视觉和玩法不变，刷新或退出后需重新输入密钥。手机网络到后端的连接问题仍在排查中，不能把连接失败时的人数当成真实人数。
+
+当前按树主人决定，保留GitHub Pages前端，迁移后端至腾讯云CloudBase。腾讯云集合、函数和服务端凭据已配置，真实数据库读取、CORS预检和管理员鉴权已通过；写入验收、旧数据迁移和前端切换待确认。见 [腾讯云接入说明](cloudbase/api/README.md)。原Cloudflare后端继续保留。
+
 ## 本地完整运行
 
 需要 Node.js 24。在项目目录运行：
@@ -33,7 +37,7 @@ npm run dev      # 终端二，127.0.0.1:5173
 ## 验证与构建
 
 ```powershell
-npm test           # 29项：题库、所有分数、持久化、限流、幂等、管理鉴权等
+npm test           # 40项：题库、分层、D1/腾讯存储适配、防重、管理等
 npm run check      # 前后端TypeScript检查
 npm run test:cloud # 隔离Worker/D1 + 两个独立Edge浏览器 + Pages子路径联调
 npm run build      # 必须有VITE_API_URL；产物dist
@@ -78,7 +82,7 @@ npm run preview    # 预览dist，默认4173端口
 - `wrangler.jsonc`：已绑定本项目生产D1和Pages来源；本地开发使用 `.dev.vars` 覆盖本地来源。复用到其他账号时需替换绑定。
 - `.github/workflows/pages.yml`：只手动触发的Pages构建发布。
 - `scripts/admin.mjs`：导出、移除与导入命令，凭据不进入前端。
-- `tests/`：29项自动测试。
+- `tests/`：40项自动测试。
 - `DEPLOYMENT.md`：部署及跨设备验收步骤。
 
 ## 旧的离线开发模式

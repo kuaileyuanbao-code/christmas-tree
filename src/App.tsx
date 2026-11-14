@@ -62,7 +62,7 @@ export default function App(){
     <main className="home-main">
       <section className="intro">
         <h1>{treeConfig.title}</h1>
-        <p className="participant-count"><b>{displayItems.length}</b> 人装饰过{simulation!==null&&<span className="simulation-label">模拟预览</span>}</p>
+        <p className="participant-count">{simulation===null&&!loaded?'正在读取挂件…':simulation===null&&error&&items.length===0?'暂未连接共享圣诞树':<><b>{displayItems.length}</b> 人装饰过</>}{simulation!==null&&<span className="simulation-label">模拟预览</span>}</p>
       </section>
       <section className="tree-scene" aria-label="可以点击挂件的圣诞树">
         <div className="tree-stage" data-testid="tree-stage">
